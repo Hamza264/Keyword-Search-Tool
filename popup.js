@@ -1,42 +1,102 @@
-import objc
-from Cocoa import NSApplication, NSWindow, NSButton, NSTextView, NSScrollView, NSMakeRect, NSBackingStoreBuffered, NSApp, NSApplicationActivationPolicyRegular, NSObject, NSRunLoop, NSDefaultRunLoopMode
+// Load saved results when the popup is opened
+document.addEventListener("DOMContentLoaded", function () {
+  chrome.storage.local.get("savedResults", function (data) {
+    if (data.savedResults) {
+      displayResults(data.savedResults);
+    }
+  });
+});
 
-class AppDelegate(NSObject):
-    def applicationDidFinishLaunching_(self, notification):
-        self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
-            NSMakeRect(200.0, 300.0, 480.0, 320.0), 
-            15,  # NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
-            NSBackingStoreBuffered, 
-            False
-        )
-        self.window.setTitle_("Simple Text Editor")
-        self.window.makeKeyAndOrderFront_(None)
-        
-        # Create a ScrollView and TextView
-        scrollView = NSScrollView.alloc().initWithFrame_(NSMakeRect(20, 50, 440, 220))
-        scrollView.setHasVerticalScroller_(True)
-        
-        self.textView = NSTextView.alloc().initWithFrame_(NSMakeRect(0, 0, 440, 220))
-        scrollView.setDocumentView_(self.textView)
-        self.window.contentView().addSubview_(scrollView)
+document.getElementById("generateBtn").addEventListener("click", function () {
+  const searchEngine = document.getElementById("searchEngine").value;
+  const listA = document
+    .getElementById("listA")
+    .value.split(",")
+    .map((item) => item.trim());
+  const listB = document
+    .getElementById("listB")
+    .value.split(",")
+    .map((item) => item.trim());
+  const listC = document
+    .getElementById("listC")
+    .value.split(",")
+    .map((item) => item.trim());
+  const resultsDiv = document.getElementById("results");
 
-        # Add a save button
-        saveButton = NSButton.alloc().initWithFrame_(NSMakeRect(190, 10, 100, 30))
-        saveButton.setTitle_("Save Text")
-        saveButton.setTarget_(self)
-        saveButton.setAction_(objc.selector(self.saveText_, signature=b'v@:@'))
-        self.window.contentView().addSubview_(saveButton)
+  let results = [];
 
-    def saveText_(self, sender):
-        text = self.textView.string()
-        with open("saved_text.txt", "w") as file:
-            file.write(text)
-        print("Text saved to saved_text.txt")
+  listA.forEach((a) => {
+    listB.forEach((b) => {
+      listC.forEach((c) => {
+        const combination = `${a}, ${b}, ${c}`;
+        const query = encodeURIComponent(combination);
+        const url =
+          searchEngine === "scholar"
+            ? `https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=${query}`
+            : `https://www.google.com/search?q=${query}`;
+        results.push({ combination, url });
+      });
+    });
+  });
 
-if __name__ == "__main__":
-    app = NSApplication.sharedApplication()
-    delegate = AppDelegate.alloc().init()
-    app.setDelegate_(delegate)
-    app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
-    app.activateIgnoringOtherApps_(True)
-    app.run()
+  // Save results to Chrome storage
+  chrome.storage.local.set({ savedResults: results }, function () {
+    displayResults(results);
+  });
+});
+
+document.getElementById("randomizeBtn").addEventListener("click", function () {
+  chrome.storage.local.get("savedResults", function (data) {
+    if (data.savedResults) {
+      let results = data.savedResults;
+      results = shuffleArray(results);
+      chrome.storage.local.set({ savedResults: results }, function () {
+        displayResults(results);
+      });
+    }
+  });
+});
+
+document.getElementById("clearBtn").addEventListener("click", function () {
+  chrome.storage.local.remove("savedResults", function () {
+    document.getElementById("results").innerHTML = "";
+  });
+});
+
+function displayResults(results) {
+  const resultsDiv = document.getElementById("results");
+  resultsDiv.innerHTML = "";
+  results.forEach((item) => {
+    const divElement = document.createElement("div");
+    divElement.className = "result-item";
+
+    const linkElement = document.createElement("a");
+    linkElement.href = item.url;
+    linkElement.target = "_blank";
+    linkElement.className = "result-link";
+    linkElement.textContent = item.combination;
+
+    divElement.appendChild(linkElement);
+    resultsDiv.appendChild(divElement);
+  });
+}
+
+function shuffleArray(array) {
+  let currentIndex = array.length,
+    randomIndex;
+
+  // While there remain elements to shuffle...
+  while (currentIndex !== 0) {
+    // Pick a remaining element...
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex],
+      array[currentIndex],
+    ];
+  }
+
+  return array;
+}
